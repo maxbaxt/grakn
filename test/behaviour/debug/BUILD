@@ -17,6 +17,7 @@
 
 
 package(default_visibility = ["//visibility:__subpackages__"])
+#package(default_visibility = ["//test/behaviour:__subpackages__"])
 load("@graknlabs_dependencies//tool/checkstyle:rules.bzl", "checkstyle_test")
 
 java_test(
@@ -37,19 +38,19 @@ java_test(
         "@maven//:io_cucumber_cucumber_junit",
     ],
     runtime_deps = [
-#        "//test/behaviour/graql:steps",
-#        "//test/behaviour/connection:steps",
-#        "//test/behaviour/connection/session:steps",
-#        "//test/behaviour/connection/transaction:steps",
-#        "//test/behaviour/connection/keyspace:steps",
-#        "//test/behaviour/config:parameters",
+        "//test/behaviour/graql:steps",
+        "//test/behaviour/connection:steps",
+        "//test/behaviour/connection/session:steps",
+        "//test/behaviour/connection/transaction:steps",
+        "//test/behaviour/connection/keyspace:steps",
+        "//test/behaviour/config:parameters",
     ],
     classpath_resources = ["//test/resources:logback-test"],
     data = [
         ":debug.feature",
     ],
     size = "medium",
-    tags = ["manual"]
+    tags = ["manual"],
 )
 
 checkstyle_test(

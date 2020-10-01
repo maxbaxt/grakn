@@ -87,6 +87,8 @@ public class IsaAtomValidator implements AtomValidator<IsaAtom> {
                 Variable headVariable = atom.getVarName();
                 errors.add(ErrorMessage.VALIDATION_RULE_ILLEGAL_HEAD_REWRITING_META_TYPE.getMessage(rule, headVariable));
             }
+
+            //need to check in here that the type is concrete
         }
 
         return null;

@@ -58,6 +58,14 @@ public class BasicAtomValidator implements AtomValidator<Atom> {
             errors.add(ErrorMessage.VALIDATION_RULE_ILLEGAL_HEAD_ATOM_WITH_UNBOUND_VARIABLE.getMessage(rule.then(), rule.label()));
         }
 
+        Label label = atom.getTypeLabel();
+
+        Boolean test1 = atom.isBounded();
+        Boolean test2 = atom.isGround();
+        Boolean test3 = atom.isRelationAtom();
+        Boolean test4 = atom.isSelectable();
+
+
         SchemaConcept schemaConcept = atom.getSchemaConcept();
         if (schemaConcept == null) {
             errors.add(ErrorMessage.VALIDATION_RULE_ILLEGAL_HEAD_ATOM_WITH_AMBIGUOUS_SCHEMA_CONCEPT.getMessage(rule.then(), rule.label()));

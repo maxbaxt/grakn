@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import grakn.common.util.Pair;
 import grakn.core.concept.answer.ConceptMap;
+import grakn.core.graql.planning.gremlin.value.ValueComparison;
 import grakn.core.graql.reasoner.CacheCasting;
 import grakn.core.graql.reasoner.ReasoningContext;
 import grakn.core.graql.reasoner.atom.binary.AttributeAtom;
@@ -51,6 +52,7 @@ import graql.lang.property.VarProperty;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -139,9 +141,22 @@ public abstract class Atom extends AtomicBase {
      * @return true if the atom is ground (all variables are bound)
      */
     public boolean isGround() {
+        //Predicate preds = getPredicates().collect(toSet()).iterator().next();
+        Predicate innerPred = getInnerPredicates().collect(toSet()).iterator().next();
+        Set<Variable> vars = getVarNames();
+        Iterator<Variable> varsIt = vars.iterator();
+        Variable var1 = varsIt.next();
+        Variable var2 = varsIt.next();
+//        Variable var3 = vars.next();
+
+        Set<Predicate> preds = getPredicates().collect(toSet());
+        Set<Predicate> innerPredsSet = getInnerPredicates().collect(toSet());
+        Class cls = innerPred.getClass();
+
         Set<Variable> mappedVars = Stream.concat(getPredicates(), getInnerPredicates())
                 .map(AtomicBase::getVarName)
                 .collect(toSet());
+
         return mappedVars.containsAll(getVarNames());
     }
 
