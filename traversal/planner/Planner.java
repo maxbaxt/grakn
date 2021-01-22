@@ -31,10 +31,7 @@ public interface Planner {
     Procedure procedure();
 
     default void tryOptimise(GraphManager graphMgr) {
-        long start = System.nanoTime();
         if (isGraph()) this.asGraph().optimise(graphMgr);
-        long end = System.nanoTime();
-        System.out.println("try optimise: " + (end - start)/1000000000.0);
     }
 
     static Planner create(Structure structure) {

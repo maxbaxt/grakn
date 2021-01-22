@@ -118,27 +118,15 @@ public class TypeResolver {
     private Map<Reference, Set<Label>> executeResolverTraversals(TraversalBuilder traversalConstructor) {
         return logicCache.resolver().get(traversalConstructor.traversal(), traversal -> {
             Map<Reference, Set<Label>> mapping = new HashMap<>();
-            long start = System.nanoTime();
-            final AtomicLong duration = new AtomicLong();
-            final AtomicInteger count = new AtomicInteger();
             new ProducerIterator<>(list(traversalEng.producer(traversal, ExecutorService.PARALLELISATION_FACTOR))).forEachRemaining(
-//            traversalEng.iterator(traversal).forEachRemaining(
-                    result -> {
-                        result.forEach((ref, vertex) -> {
+                    result -> result.forEach((ref, vertex) -> {
                             mapping.putIfAbsent(ref, new HashSet<>());
                             assert vertex.isType();
                             // TODO: This filter should not be needed if we enforce traversal only to return non-abstract
                             if (!(vertex.asType().isAbstract() && traversalConstructor.getVariable(ref).isThing()))
                                 mapping.get(ref).add(vertex.asType().properLabel());
-                        });
-                        count.getAndIncrement();
-                    }
+                        })
             );
-            System.out.println("num of answers: " + count);
-            System.out.println("just updating time: " + duration.get() / 1000000000.0);
-
-            long end = System.nanoTime();
-            System.out.println("iterator time: " + (end - start) / 1000000000.0);
             return mapping;
         });
     }

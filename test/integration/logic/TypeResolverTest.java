@@ -931,17 +931,12 @@ public class TypeResolverTest {
     }
 
     @Test
-    public void takes_too_long() throws IOException {
+    public void type_resolver_on_big_schema() throws IOException {
         define_standard_schema("big-schema");
 
         TypeResolver typeResolver = transaction.logic().typeResolver();
         String queryString = "match (is_parent: $function, is_child: $functionName); $functionName has name contains 'main';";
-        long start = System.nanoTime();
-        Conjunction conjunction = resolveConjunction(typeResolver, queryString);
-        long end = System.nanoTime();
-        long duration = end - start;
-        assertTrue(true);
-        System.out.println(duration/1000000000.0);
+        resolveConjunction(typeResolver, queryString);
     }
 
 }
