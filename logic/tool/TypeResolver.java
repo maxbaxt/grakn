@@ -113,6 +113,7 @@ public class TypeResolver {
     private Map<Reference, Set<Label>> executeResolverTraversals(TraversalBuilder traversalConstructor) {
         return logicCache.resolver().get(traversalConstructor.traversal(), traversal -> {
             Map<Reference, Set<Label>> mapping = new HashMap<>();
+            long start = System.nanoTime();
             traversalEng.iterator(traversal).forEachRemaining(
                     result -> result.forEach((ref, vertex) -> {
                         mapping.putIfAbsent(ref, new HashSet<>());
@@ -122,6 +123,8 @@ public class TypeResolver {
                             mapping.get(ref).add(vertex.asType().properLabel());
                     })
             );
+            long end = System.nanoTime();
+            System.out.println((end - start)/1000000000.0);
             return mapping;
         });
     }

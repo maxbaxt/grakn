@@ -49,8 +49,12 @@ public class TraversalEngine {
     }
 
     public ResourceIterator<VertexMap> iterator(Traversal traversal) {
+        long start = System.nanoTime();
         traversal.initialise(cache);
-        return traversal.iterator(graphMgr);
+        final ResourceIterator<VertexMap> temp = traversal.iterator(graphMgr);
+        long end = System.nanoTime();
+        System.out.println("trav time " + (end - start)/1000000000.0);
+        return temp;
     }
 
     public ResourceIterator<VertexMap> iterator(GraphProcedure procedure, Traversal.Parameters params) {
