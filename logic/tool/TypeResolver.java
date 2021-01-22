@@ -19,8 +19,10 @@
 package grakn.core.logic.tool;
 
 import grakn.common.collection.Bytes;
+import grakn.core.common.concurrent.ExecutorService;
 import grakn.core.common.exception.GraknException;
 import grakn.core.common.parameters.Label;
+import grakn.core.common.producer.ProducerIterator;
 import grakn.core.concept.ConceptManager;
 import grakn.core.graph.util.Encoding;
 import grakn.core.graph.vertex.TypeVertex;
@@ -46,7 +48,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static grakn.common.collection.Collections.list;
 import static grakn.common.collection.Collections.set;
 import static grakn.core.common.exception.ErrorMessage.Internal.ILLEGAL_STATE;
 import static grakn.core.common.exception.ErrorMessage.Pattern.UNSATISFIABLE_CONJUNCTION;
@@ -114,17 +119,26 @@ public class TypeResolver {
         return logicCache.resolver().get(traversalConstructor.traversal(), traversal -> {
             Map<Reference, Set<Label>> mapping = new HashMap<>();
             long start = System.nanoTime();
-            traversalEng.iterator(traversal).forEachRemaining(
-                    result -> result.forEach((ref, vertex) -> {
-                        mapping.putIfAbsent(ref, new HashSet<>());
-                        assert vertex.isType();
-                        // TODO: This filter should not be needed if we enforce traversal only to return non-abstract
-                        if (!(vertex.asType().isAbstract() && traversalConstructor.getVariable(ref).isThing()))
-                            mapping.get(ref).add(vertex.asType().properLabel());
-                    })
+            final AtomicLong duration = new AtomicLong();
+            final AtomicInteger count = new AtomicInteger();
+            new ProducerIterator<>(list(traversalEng.producer(traversal, ExecutorService.PARALLELISATION_FACTOR))).forEachRemaining(
+//            traversalEng.iterator(traversal).forEachRemaining(
+                    result -> {
+                        result.forEach((ref, vertex) -> {
+                            mapping.putIfAbsent(ref, new HashSet<>());
+                            assert vertex.isType();
+                            // TODO: This filter should not be needed if we enforce traversal only to return non-abstract
+                            if (!(vertex.asType().isAbstract() && traversalConstructor.getVariable(ref).isThing()))
+                                mapping.get(ref).add(vertex.asType().properLabel());
+                        });
+                        count.getAndIncrement();
+                    }
             );
+            System.out.println("num of answers: " + count);
+            System.out.println("just updating time: " + duration.get() / 1000000000.0);
+
             long end = System.nanoTime();
-            System.out.println((end - start)/1000000000.0);
+            System.out.println("iterator time: " + (end - start) / 1000000000.0);
             return mapping;
         });
     }

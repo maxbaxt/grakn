@@ -53,7 +53,7 @@ public class TraversalEngine {
         traversal.initialise(cache);
         final ResourceIterator<VertexMap> temp = traversal.iterator(graphMgr);
         long end = System.nanoTime();
-        System.out.println("trav time " + (end - start)/1000000000.0);
+        System.out.println("trav time: " + (end - start)/1000000000.0);
         return temp;
     }
 
