@@ -274,6 +274,7 @@ public class GraphPlanner implements Planner {
                 totalCostLastRecorded = totalCostNext;
                 vertices.values().forEach(PlannerVertex::recordCost);
                 edges.forEach(PlannerEdge::recordCost);
+                new Initialiser().execute();
             }
         }
         LOG.trace(solver.exportModelAsLpFormat());
@@ -335,14 +336,13 @@ public class GraphPlanner implements Planner {
             } else {
                 // TODO: we should have a more clever logic to allocate extra time
                 long allocatedDuration = extraTime ? HIGHER_TIME_LIMIT_MILLIS : DEFAULT_TIME_LIMIT_MILLIS;
-                Instant start, startSolver, endSolver, end;
+                Instant start, endSolver, end;
                 totalDuration += allocatedDuration;
                 solver.setTimeLimit(totalDuration);
 
                 start = Instant.now();
-                new Initialiser().execute();
-                startSolver = Instant.now();
                 resultStatus = solver.solve(parameters);
+                resetInitialValues();
                 endSolver = Instant.now();
                 if (isError()) throwPlanningError();
                 else assert isPlanned();
@@ -351,11 +351,15 @@ public class GraphPlanner implements Planner {
                 end = Instant.now();
 
                 isUpToDate = true;
-                totalDuration -= allocatedDuration - between(startSolver, endSolver).toMillis();
-                printDebug(start, startSolver, endSolver, end);
+                totalDuration -= allocatedDuration - between(start, endSolver).toMillis();
+                printDebug(start, endSolver, end);
             }
             isOptimising.set(false);
         }
+    }
+
+    private void resetInitialValues() {
+        solver.setHint(new MPVariable[]{}, new double[]{});
     }
 
     private void throwPlanningError() {
@@ -364,11 +368,10 @@ public class GraphPlanner implements Planner {
         throw GraknException.of(UNEXPECTED_PLANNING_ERROR);
     }
 
-    private void printDebug(Instant start, Instant startSolver, Instant endSolver, Instant end) {
+    private void printDebug(Instant start, Instant endSolver, Instant end) {
         if (LOG.isDebugEnabled()) {
             LOG.debug(String.format("Optimisation status         : %s", resultStatus.name()));
-            LOG.debug(String.format("Initialiser duration        : %s (ms)", between(start, startSolver).toMillis()));
-            LOG.debug(String.format("Solver duration             : %s (ms)", between(startSolver, endSolver).toMillis()));
+            LOG.debug(String.format("Solver duration             : %s (ms)", between(start, endSolver).toMillis()));
             LOG.debug(String.format("Procedure creation duration : %s (ms)", between(endSolver, end).toMillis()));
             LOG.debug(String.format("Total duration ------------ : %s (ms)", between(start, end).toMillis()));
         }
