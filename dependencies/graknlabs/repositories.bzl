@@ -31,19 +31,18 @@ def graknlabs_common():
         tag = "2.0.0-alpha-6", # sync-marker: do not remove this comment, this is used for sync-dependencies by @graknlabs_common
     )
 
-
 def graknlabs_graql():
     git_repository(
         name = "graknlabs_graql",
         remote = "https://github.com/graknlabs/graql",
-        commit = "a92e7ae110343e56ecc4a0baf033bab2fd905660", # sync-marker: do not remove this comment, this is used for sync-dependencies by @graknlabs_graql
+        commit = "e96ba1d4e0ea9fe98b87453b23193306ae56a195", # sync-marker: do not remove this comment, this is used for sync-dependencies by @graknlabs_graql
     )
 
 def graknlabs_protocol():
     git_repository(
         name = "graknlabs_protocol",
         remote = "https://github.com/graknlabs/protocol",
-        commit = "c3b95a43a7b72a178dc740590d5a3b6c4ccf9cdc", # sync-marker: do not remove this comment, this is used for sync-dependencies by @graknlabs_protocol
+        commit = "bb59512aa6a9d303918000cb9a86534666d962a0", # sync-marker: do not remove this comment, this is used for sync-dependencies by @graknlabs_protocol
     )
 
 def graknlabs_grabl_tracing():
@@ -57,5 +56,5 @@ def graknlabs_behaviour():
     git_repository(
         name = "graknlabs_behaviour",
         remote = "https://github.com/graknlabs/behaviour",
-        commit = "b5234deedf3443f316be5f23b2154457f87b21e1", # sync-marker: do not remove this comment, this is used for sync-dependencies by @graknlabs_behaviour
+        commit = "7a4c464e2af295bb2bd392d9cc61784ecbed137e", # sync-marker: do not remove this comment, this is used for sync-dependencies by @graknlabs_behaviour
     )

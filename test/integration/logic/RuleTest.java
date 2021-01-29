@@ -244,7 +244,7 @@ public class RuleTest {
                                                                pair(Reference.name("y"), people.get(1))));
 
                     Map<Identifier, Concept> thenConcepts = rule.putConclusion(whenAnswer, txn.traversal(), conceptMgr);
-                    assertEquals(4, thenConcepts.size());
+                    assertEquals(5, thenConcepts.size());
 
                     RelationType friendship = conceptMgr.getRelationType("friendship");
                     List<Relation> friendshipInstances = friendship.getInstances().collect(Collectors.toList());
@@ -299,10 +299,11 @@ public class RuleTest {
                                                                pair(Reference.name("y"), people.get(1))));
 
                     Map<Identifier, Concept> thenConcepts = rule.putConclusion(whenAnswer, txn.traversal(), conceptMgr);
-                    assertEquals(4, thenConcepts.size());
+                    assertEquals(5, thenConcepts.size());
                     friendshipInstances = friendship.getInstances().collect(Collectors.toList());
                     assertEquals(1, friendshipInstances.size());
-                    assertEquals(friendshipInstances.get(0), thenConcepts.get(Identifier.Variable.label("friendship")));
+                    assertEquals(friendshipInstances.get(0), thenConcepts.get(Identifier.Variable.anon(0)));
+                    assertEquals(friendship, thenConcepts.get(Identifier.Variable.label("friendship")));
                 }
             }
         }

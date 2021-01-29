@@ -22,6 +22,7 @@ import com.google.ortools.linearsolver.MPConstraint;
 import com.google.ortools.linearsolver.MPObjective;
 import com.google.ortools.linearsolver.MPSolver;
 import com.google.ortools.linearsolver.MPSolverParameters;
+import com.google.ortools.linearsolver.MPVariable;
 import grakn.core.common.exception.GraknException;
 import grakn.core.concurrent.lock.ManagedCountDownLatch;
 import grakn.core.graph.GraphManager;
@@ -34,13 +35,13 @@ import grakn.core.traversal.structure.StructureVertex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,18 +57,16 @@ import static com.google.ortools.linearsolver.MPSolverParameters.IntegerParam.IN
 import static com.google.ortools.linearsolver.MPSolverParameters.IntegerParam.PRESOLVE;
 import static com.google.ortools.linearsolver.MPSolverParameters.PresolveValues.PRESOLVE_ON;
 import static grakn.core.common.exception.ErrorMessage.Internal.UNEXPECTED_PLANNING_ERROR;
+import static java.time.Duration.between;
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.toList;
 
 public class GraphPlanner implements Planner {
 
-    // TODO: before we optimise for the first time, we can set the solver variables
-    //       with initial values, computed by a greedy algorithm. This would
-    //       allow the solver to skip the long processing to find the first
-    //       "feasible" plan. I.e. the solver will start optimising from a
-    //       "feasible" plan and get much more optimal at every cycle.
-
     private static final Logger LOG = LoggerFactory.getLogger(GraphPlanner.class);
 
-    static final long TIME_LIMIT_MILLIS = 100;
+    static final long DEFAULT_TIME_LIMIT_MILLIS = 100;
+    static final long HIGHER_TIME_LIMIT_MILLIS = 200;
     static final double OBJECTIVE_COEFFICIENT_MAX_EXPONENT_DEFAULT = 3.0;
     static final double OBJECTIVE_PLANNER_COST_MAX_CHANGE = 0.2;
     static final double OBJECTIVE_VARIABLE_COST_MAX_CHANGE = 2.0;
@@ -86,7 +85,7 @@ public class GraphPlanner implements Planner {
     private volatile long totalDuration;
     private volatile long snapshot;
 
-    volatile double totalCostPrevious;
+    volatile double totalCostLastRecorded;
     double totalCostNext;
     double branchingFactor;
     double costExponentUnit;
@@ -104,7 +103,7 @@ public class GraphPlanner implements Planner {
         resultStatus = MPSolver.ResultStatus.NOT_SOLVED;
         isUpToDate = false;
         totalDuration = 0L;
-        totalCostPrevious = 0.01;
+        totalCostLastRecorded = 0.01;
         totalCostNext = 0.01;
         branchingFactor = 0.01;
         costExponentUnit = 0.1;
@@ -269,10 +268,10 @@ public class GraphPlanner implements Planner {
             setCostExponentUnit(graph);
             computeTotalCostNext(graph);
 
-            assert !Double.isNaN(totalCostNext) && !Double.isNaN(totalCostPrevious) && totalCostPrevious > 0;
-            if (totalCostNext / totalCostPrevious >= OBJECTIVE_PLANNER_COST_MAX_CHANGE) setOutOfDate();
+            assert !Double.isNaN(totalCostNext) && !Double.isNaN(totalCostLastRecorded) && totalCostLastRecorded > 0;
+            if (totalCostNext / totalCostLastRecorded >= OBJECTIVE_PLANNER_COST_MAX_CHANGE) setOutOfDate();
             if (!isUpToDate) {
-                totalCostPrevious = totalCostNext;
+                totalCostLastRecorded = totalCostNext;
                 vertices.values().forEach(PlannerVertex::recordCost);
                 edges.forEach(PlannerEdge::recordCost);
             }
@@ -282,16 +281,16 @@ public class GraphPlanner implements Planner {
 
     void updateCostNext(double costPrevious, double costNext) {
         assert !Double.isNaN(totalCostNext);
-        assert !Double.isNaN(totalCostPrevious);
+        assert !Double.isNaN(totalCostLastRecorded);
         assert !Double.isNaN(costPrevious);
         assert !Double.isNaN(costNext);
-        assert costPrevious > 0 && totalCostPrevious > 0;
+        assert costPrevious > 0 && totalCostLastRecorded > 0;
 
         totalCostNext += costNext;
         assert !Double.isNaN(totalCostNext);
 
         if (costNext / costPrevious >= OBJECTIVE_VARIABLE_COST_MAX_CHANGE &&
-                costNext / totalCostPrevious >= OBJECTIVE_VARIABLE_TO_PLANNER_COST_MIN_CHANGE) {
+                costNext / totalCostLastRecorded >= OBJECTIVE_VARIABLE_TO_PLANNER_COST_MIN_CHANGE) {
             setOutOfDate();
         }
     }
@@ -328,38 +327,56 @@ public class GraphPlanner implements Planner {
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
-    void optimise(GraphManager graph) {
+    void optimise(GraphManager graph, boolean extraTime) {
         if (isOptimising.compareAndSet(false, true)) {
-            Instant s = Instant.now();
             updateObjective(graph);
-            if (!isUpToDate() || !isOptimal()) {
-                do {
-                    totalDuration += TIME_LIMIT_MILLIS;
-                    solver.setTimeLimit(totalDuration);
-                    Instant start = Instant.now();
-                    resultStatus = solver.solve(parameters);
-                    Instant finish = Instant.now();
-                    long timeElapsed = Duration.between(start, finish).toMillis();
-                    totalDuration -= (TIME_LIMIT_MILLIS - timeElapsed);
-                    if (isError()) {
-                        LOG.error(toString());
-                        LOG.error(solver.exportModelAsLpFormat());
-                        throw GraknException.of(UNEXPECTED_PLANNING_ERROR);
-                    }
-                } while (!isPlanned());
-                produceProcedure();
+            if (isUpToDate() && isOptimal()) {
+                if (LOG.isDebugEnabled()) LOG.debug("Optimisation still optimal and up-to-date");
+            } else {
+                // TODO: we should have a more clever logic to allocate extra time
+                long allocatedDuration = extraTime ? HIGHER_TIME_LIMIT_MILLIS : DEFAULT_TIME_LIMIT_MILLIS;
+                Instant start, startSolver, endSolver, end;
+                totalDuration += allocatedDuration;
+                solver.setTimeLimit(totalDuration);
+
+                start = Instant.now();
+                new Initialiser().execute();
+                startSolver = Instant.now();
+                resultStatus = solver.solve(parameters);
+                endSolver = Instant.now();
+                if (isError()) throwPlanningError();
+                else assert isPlanned();
+
+                createProcedure();
+                end = Instant.now();
+
                 isUpToDate = true;
+                totalDuration -= allocatedDuration - between(startSolver, endSolver).toMillis();
+                printDebug(start, startSolver, endSolver, end);
             }
             isOptimising.set(false);
-            Instant e = Instant.now();
-            LOG.debug(String.format("Optimisation status: %s", resultStatus.name()));
-            LOG.debug(String.format("Optimisation duration: %s (ms)", Duration.between(s, e).toMillis()));
         }
     }
 
-    private void produceProcedure() {
-        vertices.values().forEach(PlannerVertex::recordValues);
-        edges.forEach(PlannerEdge::recordValues);
+    private void throwPlanningError() {
+        LOG.error(toString());
+        LOG.error(solver.exportModelAsLpFormat());
+        throw GraknException.of(UNEXPECTED_PLANNING_ERROR);
+    }
+
+    private void printDebug(Instant start, Instant startSolver, Instant endSolver, Instant end) {
+        if (LOG.isDebugEnabled()) {
+            LOG.debug(String.format("Optimisation status         : %s", resultStatus.name()));
+            LOG.debug(String.format("Initialiser duration        : %s (ms)", between(start, startSolver).toMillis()));
+            LOG.debug(String.format("Solver duration             : %s (ms)", between(startSolver, endSolver).toMillis()));
+            LOG.debug(String.format("Procedure creation duration : %s (ms)", between(endSolver, end).toMillis()));
+            LOG.debug(String.format("Total duration ------------ : %s (ms)", between(start, end).toMillis()));
+        }
+    }
+
+    private void createProcedure() {
+        vertices.values().forEach(PlannerVertex::recordResults);
+        edges.forEach(PlannerEdge::recordResults);
         procedure = GraphProcedure.create(this);
         if (procedureLatch.getCount() > 0) procedureLatch.countDown();
     }
@@ -383,5 +400,64 @@ public class GraphPlanner implements Planner {
         }
         str.append("\n}");
         return str.toString();
+    }
+
+    private class Initialiser {
+
+        private final LinkedHashSet<PlannerVertex<?>> queue;
+        private final MPVariable[] variables;
+        private final double[] initialValues;
+        private int edgeCount;
+
+        private Initialiser() {
+            queue = new LinkedHashSet<>();
+            edgeCount = 0;
+
+            int count = countVariables();
+            variables = new MPVariable[count];
+            initialValues = new double[count];
+        }
+
+        private int countVariables() {
+            int vertexVars = 4 * vertices.size();
+            int edgeVars = (2 + edges.size()) * edges.size() * 2;
+            return vertexVars + edgeVars;
+        }
+
+        public void execute() {
+            resetInitialValues();
+            PlannerVertex<?> start = vertices.values().stream().min(comparing(v -> v.costLastRecorded)).get();
+            start.setStartingVertexInitial();
+            queue.add(start);
+            while (!queue.isEmpty()) {
+                PlannerVertex<?> vertex = queue.iterator().next();
+                List<PlannerEdge.Directional<?, ?>> outgoing = vertex.outs().stream()
+                        .filter(e -> !e.hasInitialValue() && !(e.isSelfClosure() && e.direction().isBackward()))
+                        .sorted(comparing(e -> e.costLastRecorded)).collect(toList());
+                if (!outgoing.isEmpty()) {
+                    vertex.setHasOutgoingEdgesInitial();
+                    outgoing.forEach(e -> {
+                        e.setInitialValue(++edgeCount);
+                        e.to().setHasIncomingEdgesInitial();
+                        queue.add(e.to());
+                    });
+                } else {
+                    vertex.setEndingVertexInitial();
+                }
+                queue.remove(vertex);
+            }
+
+            int index = 0;
+            for (PlannerVertex<?> v : vertices.values()) index = v.recordInitial(variables, initialValues, index);
+            for (PlannerEdge<?, ?> e : edges) index = e.recordInitial(variables, initialValues, index);
+            assert index == variables.length && index == initialValues.length;
+
+            solver.setHint(variables, initialValues);
+        }
+
+        private void resetInitialValues() {
+            vertices.values().forEach(PlannerVertex::resetInitialValue);
+            edges.forEach(PlannerEdge::resetInitialValue);
+        }
     }
 }
