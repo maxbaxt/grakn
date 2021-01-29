@@ -118,19 +118,31 @@ public class TypeResolver {
     }
 
     private Map<Reference, Set<Label>> executeResolverTraversals(TraversalBuilder traversalBuilder) {
-        return logicCache.resolver().get(traversalBuilder.traversal(), traversal -> {
-            Map<Reference, Set<Label>> mapping = new HashMap<>();
-            traversalEng.iterator(traversal, true).forEachRemaining(
-                    result -> result.forEach((ref, vertex) -> {
-                        mapping.putIfAbsent(ref, new HashSet<>());
-                        assert vertex.isType();
-                        // TODO: This filter should not be needed if we enforce traversal only to return non-abstract
-                        if (!(vertex.asType().isAbstract() && traversalBuilder.getVariable(ref).isThing()))
-                            mapping.get(ref).add(vertex.asType().properLabel());
-                    })
-            );
-            return mapping;
-        });
+//        return logicCache.resolver().get(traversalBuilder.traversal(), traversal -> {
+//            Map<Reference, Set<Label>> mapping = new HashMap<>();
+//            traversalEng.iterator(traversal, true).forEachRemaining(
+//                    result -> result.forEach((ref, vertex) -> {
+//                        mapping.putIfAbsent(ref, new HashSet<>());
+//                        assert vertex.isType();
+//                        // TODO: This filter should not be needed if we enforce traversal only to return non-abstract
+//                        if (!(vertex.asType().isAbstract() && traversalBuilder.getVariable(ref).isThing()))
+//                            mapping.get(ref).add(vertex.asType().properLabel());
+//                    })
+//            );
+//            return mapping;
+//        });
+        //disabled caching to produce bug
+        Map<Reference, Set<Label>> mapping = new HashMap<>();
+        traversalEng.iterator(traversalBuilder.traversal(), true).forEachRemaining(
+                result -> result.forEach((ref, vertex) -> {
+                    mapping.putIfAbsent(ref, new HashSet<>());
+                    assert vertex.isType();
+                    // TODO: This filter should not be needed if we enforce traversal only to return non-abstract
+                    if (!(vertex.asType().isAbstract() && traversalBuilder.getVariable(ref).isThing()))
+                        mapping.get(ref).add(vertex.asType().properLabel());
+                })
+        );
+        return mapping;
     }
 
     private static class TraversalBuilder {

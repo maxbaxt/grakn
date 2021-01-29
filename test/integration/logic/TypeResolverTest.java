@@ -1015,4 +1015,18 @@ public class TypeResolverTest {
 
         assertEquals(expected, getHintMap(conjunction));
     }
+
+    @Test
+    public void hit_planning_cache_twice() throws IOException {
+        define_standard_schema("query-test-schema");
+        String queryString = "match" +
+                " (parent: $x, child: $y) isa repo-fork;" +
+                " (parent: $y, child: $z) isa repo-fork;";
+        Conjunction conjunction = createConjunction(queryString);
+
+        TypeResolver typeResolver = transaction.logic().typeResolver();
+        typeResolver.resolve(conjunction);
+//        TODO: fails on second call
+        typeResolver.resolve(conjunction);
+    }
 }

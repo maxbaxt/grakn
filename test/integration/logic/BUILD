@@ -70,7 +70,7 @@ host_compatible_java_test(
         "@graknlabs_graql//java:graql",
         "@graknlabs_common//:common",
     ],
-    data = [":basic-schema.gql", ":test-type-resolution.gql"],
+    data = [":basic-schema.gql", ":test-type-resolution.gql", ":query-test-schema.gql"],
     resources = [
         "//common/test:logback"
     ],
